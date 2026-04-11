@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply bg-nami-50 text-nami-800 font-sans;
+    font-feature-settings: "cv11", "ss01";
+  }
+  
+  ::selection {
+    @apply bg-coral-200 text-coral-900;
+  }
+}
+
+@layer components {
+  /* Card component */
+  .card {
+    @apply bg-white rounded-2xl shadow-soft border border-nami-100;
+  }
+  
+  .card-interactive {
+    @apply card transition-all duration-200 hover:shadow-soft-lg hover:border-nami-200;
+  }
+  
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium 
+           transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply btn bg-nami-800 text-white hover:bg-nami-900 focus:ring-nami-600
+           active:transform active:scale-[0.98];
+  }
+  
+  .btn-secondary {
+    @apply btn bg-nami-100 text-nami-700 hover:bg-nami-200 focus:ring-nami-300;
+  }
+  
+  .btn-coral {
+    @apply btn bg-coral-500 text-white hover:bg-coral-600 focus:ring-coral-400;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-nami-600 hover:bg-nami-100 focus:ring-nami-200;
+  }
+  
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-2.5 rounded-xl border border-nami-200 bg-white
+           text-nami-800 placeholder:text-nami-400
+           transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-coral-300 focus:border-coral-400;
+  }
+  
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-coral {
+    @apply badge bg-coral-100 text-coral-700;
+  }
+  
+  .badge-teal {
+    @apply badge bg-teal-100 text-teal-700;
+  }
+  
+  .badge-nami {
+    @apply badge bg-nami-100 text-nami-700;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.nami.300') transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.nami.300');
+    border-radius: 3px;
+  }
+  
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-nami-700 via-nami-600 to-coral-500;
+  }
+  
+  /* Subtle background patterns */
+  .bg-dots {
+    background-image: radial-gradient(circle, theme('colors.nami.200') 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  
+  /* Animation delays for staggered effects */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  
+  /* Custom range slider styling */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--thumb-color, #f97352);
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+  
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--thumb-color, #f97352);
+    border: 3px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+  }
+  
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+  }
+  
+  input[type="range"]::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: #e2e8f0;
+  }
+}
