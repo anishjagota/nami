@@ -5,8 +5,9 @@
  * Gracefully degrades if Redis is not configured (skips caching).
  *
  * Key naming convention:
- *   price:{exchange}:{ticker}       → Latest EOD price
- *   historical:{exchange}:{ticker}  → Historical daily prices
+ *   returns:{exchange}:{ticker}     → Pre-computed monthly returns (30-day TTL)
+ *   price:{exchange}:{ticker}       → Latest EOD price (24-hour TTL)
+ *   historical:{exchange}:{ticker}  → Raw daily prices (7-day TTL, legacy)
  */
 
 import { Redis } from '@upstash/redis';
@@ -32,8 +33,9 @@ function getRedis() {
 }
 
 // Cache TTLs (seconds)
+const RETURNS_TTL = 30 * 24 * 60 * 60;   // 30 days — monthly returns from past months never change
 const PRICE_TTL = 24 * 60 * 60;          // 24 hours — refreshed daily
-const HISTORICAL_TTL = 7 * 24 * 60 * 60; // 7 days — historical data rarely changes
+const HISTORICAL_TTL = 7 * 24 * 60 * 60; // 7 days — raw daily prices (legacy)
 
 /**
  * Get cached prices for multiple tickers
@@ -125,6 +127,58 @@ export async function setCachedHistorical(ticker, data, exchange = 'US') {
     await client.set(key, data, { ex: HISTORICAL_TTL });
   } catch (err) {
     console.error('Redis setCachedHistorical error:', err.message);
+  }
+}
+
+// ─── Pre-computed Returns Cache (30-day TTL) ────────────────────────────────
+
+/**
+ * Get cached pre-computed returns for multiple tickers (batch)
+ *
+ * @param {string[]} tickers
+ * @param {string} exchange
+ * @returns {Promise<Object>} - { ticker: { returns, dates, months } }
+ */
+export async function getCachedReturnsData(tickers, exchange = 'US') {
+  const client = getRedis();
+  if (!client) return {};
+
+  try {
+    const pipeline = client.pipeline();
+    for (const ticker of tickers) {
+      pipeline.get(`returns:${exchange}:${ticker}`);
+    }
+    const results = await pipeline.exec();
+
+    const returns = {};
+    tickers.forEach((ticker, i) => {
+      if (results[i] !== null && results[i] !== undefined) {
+        returns[ticker] = results[i];
+      }
+    });
+    return returns;
+  } catch (err) {
+    console.error('Redis getCachedReturnsData error:', err.message);
+    return {};
+  }
+}
+
+/**
+ * Cache pre-computed returns for a single ticker
+ *
+ * @param {string} ticker
+ * @param {Object} data - { returns: number[], dates: string[], months: number }
+ * @param {string} exchange
+ */
+export async function setCachedReturnsData(ticker, data, exchange = 'US') {
+  const client = getRedis();
+  if (!client) return;
+
+  try {
+    const key = `returns:${exchange}:${ticker}`;
+    await client.set(key, data, { ex: RETURNS_TTL });
+  } catch (err) {
+    console.error('Redis setCachedReturnsData error:', err.message);
   }
 }
 

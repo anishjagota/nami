@@ -38,8 +38,8 @@ export const API_CONFIG = {
 
 // Cache settings
 export const CACHE_CONFIG = {
-  // Historical data cache TTL (24 hours)
-  historicalTTL: 24 * 60 * 60 * 1000,
+  // Historical data cache TTL (30 days — past monthly returns never change)
+  historicalTTL: 30 * 24 * 60 * 60 * 1000,
   
   // Quote cache TTL (60 seconds) - for Phase 2
   quoteTTL: 60 * 1000,

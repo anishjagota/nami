@@ -1,15 +1,16 @@
 /**
  * Historical Data Service
- * 
- * Orchestrates fetching, caching, and transforming historical price data.
- * This is the main interface for getting historical returns data.
- * 
- * Flow:
- * 1. Check cache for existing data
- * 2. If cache miss or stale, fetch from API
- * 3. Transform daily prices to monthly returns
- * 4. Cache the results
- * 5. Return to caller
+ *
+ * Orchestrates fetching, caching, and transforming historical return data.
+ * This is the main interface for the quant engine (backtest, Monte Carlo, optimization).
+ *
+ * Optimized flow (Stage 2):
+ * 1. Session cache (in-memory Map) — instant
+ * 2. IndexedDB cache (30-day TTL) — fast, persistent
+ * 3. Pre-computed returns from /api/returns — server computes monthly returns,
+ *    caches in Redis for 30 days, sends ~4KB instead of ~450KB
+ * 4. Daily prices fallback (legacy) — fetch raw prices, transform client-side
+ * 5. Static embedded data — 7 core ETFs always available offline
  */
 
 import {
@@ -23,6 +24,8 @@ import {
   fetchHistoricalPrices as fetchHistoricalPricesFromProvider,
   fetchHistoricalPricesMultiple,
 } from '../providers';
+
+import { fetchPrecomputedReturns } from '../providers/namiAPI';
 
 import {
   dailyPricesToMonthlyReturns,
@@ -89,28 +92,48 @@ export async function getReturns(ticker, options = {}) {
         }
       }
       
-      // Cache miss - fetch from API
+      // Cache miss — try pre-computed returns first (smaller + server-cached)
+      try {
+        const precomputed = await fetchPrecomputedReturns([ticker]);
+        if (precomputed[ticker]?.returns?.length > 0) {
+          const { returns, dates } = precomputed[ticker];
+
+          if (validate) {
+            const validation = validateReturnsData(returns, DATA_REQUIREMENTS.minMonthsHistory);
+            if (!validation.valid) {
+              throw new Error(`${ticker}: ${validation.reason}`);
+            }
+          }
+
+          await setCachedReturns(ticker, returns, dates);
+          sessionCache.set(ticker, { returns, dates });
+          return { returns, dates, fromCache: false };
+        }
+      } catch (err) {
+        // Re-throw validation errors (daily prices won't help either)
+        if (err.message?.includes('Insufficient')) throw err;
+        console.warn(`Pre-computed returns unavailable for ${ticker}, trying daily prices`);
+      }
+
+      // Fallback: fetch raw daily prices and transform client-side
       const prices = await fetchHistoricalPricesFromProvider(ticker);
-      
+
       if (!prices || prices.length === 0) {
         throw new Error(`No price data available for ${ticker}`);
       }
-      
-      // Transform to monthly returns
+
       const { returns, dates } = dailyPricesToMonthlyReturns(prices);
-      
-      // Validate if requested
+
       if (validate) {
         const validation = validateReturnsData(returns, DATA_REQUIREMENTS.minMonthsHistory);
         if (!validation.valid) {
           throw new Error(`${ticker}: ${validation.reason}`);
         }
       }
-      
-      // Cache the results
+
       await setCachedReturns(ticker, returns, dates);
       sessionCache.set(ticker, { returns, dates });
-      
+
       return { returns, dates, fromCache: false };
       
     } finally {
@@ -127,8 +150,23 @@ export async function getReturns(ticker, options = {}) {
 
 /**
  * Background refresh for stale data
+ * Prefers pre-computed returns (smaller, faster, server-cached)
  */
 async function refreshTickerInBackground(ticker) {
+  // Try pre-computed returns first
+  try {
+    const precomputed = await fetchPrecomputedReturns([ticker]);
+    if (precomputed[ticker]?.returns?.length > 0) {
+      const { returns, dates } = precomputed[ticker];
+      await setCachedReturns(ticker, returns, dates);
+      sessionCache.set(ticker, { returns, dates });
+      return;
+    }
+  } catch {
+    // Fall through to daily prices
+  }
+
+  // Fallback: raw daily prices
   try {
     const prices = await fetchHistoricalPricesFromProvider(ticker);
     if (prices && prices.length > 0) {
@@ -191,21 +229,49 @@ export async function getReturnsMultiple(tickers, options = {}) {
     }
   }
   
-  // Fetch remaining tickers from API
+  // Fetch remaining tickers
   if (tickersToFetch.length > 0) {
-    const prices = await fetchHistoricalPricesMultiple(tickersToFetch);
     const newCacheEntries = [];
-    
-    for (const [ticker, dailyPrices] of prices) {
-      if (dailyPrices && dailyPrices.length > 0) {
-        const { returns, dates } = dailyPricesToMonthlyReturns(dailyPrices);
-        
-        results.set(ticker, { returns, dates });
-        sessionCache.set(ticker, { returns, dates });
-        newCacheEntries.push({ ticker, returns, dates });
+
+    // Try batch pre-computed returns first (single request, ~4KB per ticker)
+    try {
+      const precomputed = await fetchPrecomputedReturns(tickersToFetch);
+
+      for (const [ticker, data] of Object.entries(precomputed)) {
+        if (data?.returns?.length > 0) {
+          results.set(ticker, { returns: data.returns, dates: data.dates });
+          sessionCache.set(ticker, { returns: data.returns, dates: data.dates });
+          newCacheEntries.push({ ticker, returns: data.returns, dates: data.dates });
+        }
+      }
+
+      // Remove successfully fetched tickers
+      const fetched = new Set(
+        Object.keys(precomputed).filter(t => precomputed[t]?.returns?.length > 0)
+      );
+      for (const t of fetched) {
+        const idx = tickersToFetch.indexOf(t);
+        if (idx > -1) tickersToFetch.splice(idx, 1);
+      }
+    } catch (err) {
+      console.warn('Batch pre-computed returns failed, falling back to daily prices:', err.message);
+    }
+
+    // Fallback: fetch remaining via individual daily price requests
+    if (tickersToFetch.length > 0) {
+      const prices = await fetchHistoricalPricesMultiple(tickersToFetch);
+
+      for (const [ticker, dailyPrices] of prices) {
+        if (dailyPrices && dailyPrices.length > 0) {
+          const { returns, dates } = dailyPricesToMonthlyReturns(dailyPrices);
+
+          results.set(ticker, { returns, dates });
+          sessionCache.set(ticker, { returns, dates });
+          newCacheEntries.push({ ticker, returns, dates });
+        }
       }
     }
-    
+
     // Batch cache update
     if (newCacheEntries.length > 0) {
       await setCachedReturnsMultiple(newCacheEntries);

@@ -123,6 +123,26 @@ export async function fetchHistoricalPricesMultiple(tickers) {
   return results;
 }
 
+// ─── Pre-computed Returns (Quant Engine) ───────────────────────────────────
+
+/**
+ * Fetch pre-computed monthly returns for tickers (batch)
+ *
+ * This is the preferred path for the quant engine — the server computes
+ * monthly returns and caches them for 30 days, so the browser receives
+ * ~4KB per ticker instead of ~450KB of raw daily prices.
+ *
+ * @param {string[]} tickers
+ * @returns {Promise<Object>} - { ticker: { returns: number[], dates: string[], months: number } }
+ */
+export async function fetchPrecomputedReturns(tickers) {
+  const result = await apiRequest('/returns', {
+    tickers: tickers.join(','),
+  });
+
+  return result.returns || {};
+}
+
 // ─── Current Prices ────────────────────────────────────────────────────────
 
 /**
