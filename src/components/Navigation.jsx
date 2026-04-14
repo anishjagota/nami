@@ -6,36 +6,44 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  Layers, 
-  BarChart3, 
-  History, 
-  TrendingUp 
+import {
+  LayoutDashboard,
+  Layers,
+  BarChart3,
+  History,
+  TrendingUp
 } from 'lucide-react';
 import { t } from '../i18n/translations';
 
 const navItems = [
-  { 
-    path: '/', 
-    label: 'Build', 
+  {
+    path: '/',
+    label: 'Home',
+    icon: LayoutDashboard,
+    description: 'Your saved portfolios',
+    exact: true,
+  },
+  {
+    path: '/build',
+    label: 'Build',
     icon: Layers,
     description: 'Construct your portfolio'
   },
-  { 
-    path: '/compare', 
-    label: 'Compare', 
+  {
+    path: '/compare',
+    label: 'Compare',
     icon: BarChart3,
     description: 'Compare alternatives'
   },
-  { 
-    path: '/history', 
-    label: 'History', 
+  {
+    path: '/history',
+    label: 'History',
     icon: History,
     description: 'Historical performance'
   },
-  { 
-    path: '/future', 
-    label: 'Future', 
+  {
+    path: '/future',
+    label: 'Future',
     icon: TrendingUp,
     description: 'Simulate outcomes'
   },

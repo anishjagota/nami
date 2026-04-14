@@ -64,7 +64,7 @@ export default function FutureSimulation() {
     <PageWrapper>
       <PageHeader
         title="Future Simulation"
-        subtitle="Explore possible future outcomes through Monte Carlo simulation"
+        subtitle="See a range of possible future outcomes based on historical patterns"
       />
       
       {!hasPortfolio ? (
@@ -79,7 +79,7 @@ export default function FutureSimulation() {
             Create a portfolio to simulate its future outcomes
           </p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-primary"
           >
             <ArrowLeft size={16} />
@@ -108,7 +108,7 @@ export default function FutureSimulation() {
           <h3 className="font-semibold text-nami-800 mb-2">Unable to load data</h3>
           <p className="text-sm text-nami-500 mb-4">{error}</p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-secondary"
           >
             <ArrowLeft size={16} />
@@ -316,19 +316,19 @@ export default function FutureSimulation() {
                   <OutcomeProbability
                     probability={1 - results.probabilities.loss}
                     label="Chance of profit"
-                    sublabel="Ending above total contributions"
+                    sublabel="Ending with more than you put in"
                     variant="success"
                   />
                   <OutcomeProbability
                     probability={results.probabilities.doubling}
                     label="Chance of doubling"
-                    sublabel={`Reaching ${formatSimCurrency(initialWealth * 2)}`}
+                    sublabel={`Ending with at least ${formatSimCurrency(initialWealth * 2)}`}
                     variant="neutral"
                   />
                   <OutcomeProbability
                     probability={results.probabilities.loss}
                     label="Chance of loss"
-                    sublabel="Ending below contributions"
+                    sublabel="Ending with less than you put in"
                     variant="warning"
                   />
                 </div>
@@ -451,10 +451,10 @@ export default function FutureSimulation() {
                     
                     <div className="mt-4 p-3 bg-nami-50 rounded-lg">
                       <p className="text-xs text-nami-500 leading-relaxed">
-                        <strong>Methodology:</strong> Simulations use historical mean returns and 
-                        covariance from 2007-2024 to generate correlated random returns. Each path 
-                        assumes monthly rebalancing to target weights. Returns are sampled from a 
-                        multivariate normal distribution using Cholesky decomposition.
+                        <strong>Methodology:</strong> Each simulation generates a possible future by
+                        randomly sampling monthly returns based on historical patterns from 2007-2024.
+                        Runs {numSimulations.toLocaleString()} independent scenarios, each assuming monthly
+                        rebalancing to target weights.
                       </p>
                     </div>
                   </div>
@@ -484,7 +484,7 @@ export default function FutureSimulation() {
               Back to History
             </button>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/build')}
               className="btn-ghost flex-1"
             >
               Edit Portfolio

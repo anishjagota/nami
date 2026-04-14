@@ -106,7 +106,7 @@ export default function ComparisonCard({
               <span className={`badge ${colors.badge}`}>Your Choice</span>
             )}
             {isTopSharpe && (
-              <span className="badge bg-teal-100 text-teal-700">Best Sharpe</span>
+              <span className="badge bg-teal-100 text-teal-700">Most Efficient</span>
             )}
             {rank && !isTopSharpe && (
               <span className="badge bg-nami-100 text-nami-600">#{rank}</span>
@@ -125,15 +125,15 @@ export default function ComparisonCard({
             positive={metrics.annualReturn > 0}
           />
           <MetricBox
-            label="Volatility"
+            label="Risk"
             value={formatVolatility(metrics.annualVol)}
             subtext="annual"
             neutral
           />
           <MetricBox
-            label="Sharpe Ratio"
+            label="Return / Risk"
             value={formatSharpe(metrics.sharpeRatio)}
-            subtext="risk-adjusted"
+            subtext="efficiency"
             positive={metrics.sharpeRatio > 0.5}
           />
         </div>
@@ -274,13 +274,13 @@ export function ComparisonRow({ portfolio, isUser, isTopSharpe }) {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-nami-400 text-xs">Vol</div>
+          <div className="text-nami-400 text-xs">Risk</div>
           <div className="text-nami-700 font-medium">
             {formatVolatility(metrics.annualVol)}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-nami-400 text-xs">Sharpe</div>
+          <div className="text-nami-400 text-xs">Return / Risk</div>
           <div className="text-nami-700 font-medium">
             {formatSharpe(metrics.sharpeRatio)}
           </div>

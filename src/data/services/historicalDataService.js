@@ -20,9 +20,9 @@ import {
 } from '../cache/historicalCache';
 
 import {
-  fetchHistoricalPricesDefault,
+  fetchHistoricalPrices as fetchHistoricalPricesFromProvider,
   fetchHistoricalPricesMultiple,
-} from '../providers/fmpProvider';
+} from '../providers';
 
 import {
   dailyPricesToMonthlyReturns,
@@ -90,7 +90,7 @@ export async function getReturns(ticker, options = {}) {
       }
       
       // Cache miss - fetch from API
-      const prices = await fetchHistoricalPricesDefault(ticker);
+      const prices = await fetchHistoricalPricesFromProvider(ticker);
       
       if (!prices || prices.length === 0) {
         throw new Error(`No price data available for ${ticker}`);
@@ -130,7 +130,7 @@ export async function getReturns(ticker, options = {}) {
  */
 async function refreshTickerInBackground(ticker) {
   try {
-    const prices = await fetchHistoricalPricesDefault(ticker);
+    const prices = await fetchHistoricalPricesFromProvider(ticker);
     if (prices && prices.length > 0) {
       const { returns, dates } = dailyPricesToMonthlyReturns(prices);
       await setCachedReturns(ticker, returns, dates);

@@ -218,22 +218,22 @@ export function getPortfolioDescription(type) {
     minVariance: {
       name: 'Safer Version',
       shortName: 'Safer',
-      description: 'Minimizes portfolio risk by optimizing for lowest volatility',
-      methodology: 'Minimum Variance optimization finds the portfolio weights that minimize total portfolio volatility (standard deviation), without regard to expected returns.',
+      description: 'Aims for the smoothest ride with the least ups and downs',
+      methodology: 'Finds the mix of assets that minimizes overall portfolio risk, without targeting higher returns.',
       color: 'teal',
     },
     riskParity: {
       name: 'Balanced Version',
       shortName: 'Balanced',
-      description: 'Each asset contributes equally to total portfolio risk',
-      methodology: 'Risk Parity allocates weights so that each asset contributes the same amount of risk to the portfolio. This often results in higher bond allocations since bonds are less volatile.',
+      description: 'Spreads risk evenly across all assets',
+      methodology: 'Allocates weights so each asset contributes the same amount of risk. This often means more bonds, since they tend to be less volatile.',
       color: 'blue',
     },
     maxSharpe: {
       name: 'Efficiency-Focused',
       shortName: 'Efficient',
-      description: 'Maximizes return per unit of risk taken',
-      methodology: 'Maximum Sharpe Ratio optimization finds the portfolio with the highest risk-adjusted return (Sharpe ratio), balancing expected return against volatility.',
+      description: 'Aims for the best return per unit of risk',
+      methodology: 'Finds the mix that gets you the most return for the risk taken, balancing growth against stability.',
       color: 'purple',
     },
   };

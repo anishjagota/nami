@@ -1,139 +1,224 @@
 /**
  * Data Provider Index
- * 
- * Provides a unified interface for fetching data, with automatic
- * fallback to mock data when the API is unavailable or for offline development.
+ *
+ * Provides a unified interface for fetching data with a three-tier fallback:
+ *
+ *   1. Nami API (our serverless backend → Upstash cache → EODHD)
+ *   2. FMP API (legacy direct calls, if API key is configured)
+ *   3. Mock/static data (7 core ETFs, always available offline)
+ *
+ * Callers don't need to know which provider is active.
+ * The fallback chain ensures the app always works — even offline.
  */
 
+import * as namiAPI from './namiAPI';
 import * as fmpProvider from './fmpProvider';
 import * as mockProvider from './mockProvider';
 import { FMP_API_KEY } from '../../config/apiConfig';
 
-// Determine if we should use mock data
-// Use mock if:
-// 1. API key is 'demo' or not set
-// 2. Running in development without explicit API key
-const USE_MOCK = FMP_API_KEY === 'demo' || !FMP_API_KEY;
-
-let apiAvailable = null;
-let apiCheckPromise = null;
+// Track which providers are available
+let namiAPIAvailable = null; // null = not checked, true/false = checked
+let fmpAvailable = null;
+let checkingNamiAPI = null;
+let checkingFMP = null;
 
 /**
- * Check if the real API is available
+ * Check if our Nami API backend is available
  */
-async function checkAPIAvailability() {
-  if (apiCheckPromise) return apiCheckPromise;
-  
-  apiCheckPromise = (async () => {
-    if (USE_MOCK) {
-      apiAvailable = false;
-      return false;
-    }
-    
+async function checkNamiAPIAvailability() {
+  if (checkingNamiAPI) return checkingNamiAPI;
+
+  checkingNamiAPI = (async () => {
     try {
-      const status = await fmpProvider.checkAPIStatus();
-      apiAvailable = status.available;
+      const status = await namiAPI.checkAPIStatus();
+      namiAPIAvailable = status.available;
       return status.available;
     } catch {
-      apiAvailable = false;
+      namiAPIAvailable = false;
       return false;
     }
   })();
-  
-  return apiCheckPromise;
+
+  return checkingNamiAPI;
 }
 
 /**
- * Get the appropriate provider based on availability
+ * Check if FMP API is available (legacy fallback)
  */
-function getProvider() {
-  return apiAvailable ? fmpProvider : null;
+async function checkFMPAvailability() {
+  if (checkingFMP) return checkingFMP;
+
+  const hasFMPKey = FMP_API_KEY && FMP_API_KEY !== 'demo';
+  if (!hasFMPKey) {
+    fmpAvailable = false;
+    return false;
+  }
+
+  checkingFMP = (async () => {
+    try {
+      const status = await fmpProvider.checkAPIStatus();
+      fmpAvailable = status.available;
+      return status.available;
+    } catch {
+      fmpAvailable = false;
+      return false;
+    }
+  })();
+
+  return checkingFMP;
 }
 
+// ─── Historical Prices ─────────────────────────────────────────────────────
+
 /**
- * Fetch historical prices with automatic fallback
- * 
+ * Fetch historical prices with three-tier fallback
+ *
  * @param {string} ticker - Ticker symbol
  * @returns {Promise<Array<{date: string, adjClose: number}>>}
  */
 export async function fetchHistoricalPrices(ticker) {
-  // Check API availability on first call
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
+  // Check provider availability on first call
+  if (namiAPIAvailable === null) {
+    await checkNamiAPIAvailability();
   }
-  
-  // Try real API first if available
-  if (apiAvailable) {
+
+  // Tier 1: Our API (EODHD via serverless + cache)
+  if (namiAPIAvailable) {
+    try {
+      const prices = await namiAPI.fetchHistoricalPricesDefault(ticker);
+      if (prices && prices.length > 0) {
+        return prices;
+      }
+    } catch (error) {
+      console.warn(`Nami API failed for ${ticker}:`, error.message);
+    }
+  }
+
+  // Tier 2: FMP direct (legacy, if key is configured)
+  if (fmpAvailable === null) {
+    await checkFMPAvailability();
+  }
+  if (fmpAvailable) {
     try {
       const prices = await fmpProvider.fetchHistoricalPricesDefault(ticker);
       if (prices && prices.length > 0) {
         return prices;
       }
     } catch (error) {
-      console.warn(`FMP fetch failed for ${ticker}, trying mock:`, error.message);
+      console.warn(`FMP failed for ${ticker}:`, error.message);
     }
   }
-  
-  // Fall back to mock data
+
+  // Tier 3: Static/mock data (7 core ETFs)
   if (mockProvider.hasMockData(ticker)) {
     return mockProvider.fetchHistoricalPricesMock(ticker);
   }
-  
-  // No data available
+
   throw new Error(`No data available for ${ticker}`);
 }
 
 /**
  * Fetch historical prices for multiple tickers
- * 
+ *
  * @param {string[]} tickers - Array of ticker symbols
  * @returns {Promise<Map<string, Array>>}
  */
 export async function fetchHistoricalPricesMultiple(tickers) {
-  // Check API availability
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
-  }
-  
   const results = new Map();
-  const tickersToFetchFromAPI = [];
-  
-  // First, check which tickers have mock data
+
   for (const ticker of tickers) {
-    if (!apiAvailable || !apiAvailable) {
-      // Only mock available
-      if (mockProvider.hasMockData(ticker)) {
-        const prices = await mockProvider.fetchHistoricalPricesMock(ticker);
-        results.set(ticker, prices);
-      }
-    } else {
-      tickersToFetchFromAPI.push(ticker);
-    }
-  }
-  
-  // Fetch remaining from API
-  if (tickersToFetchFromAPI.length > 0 && apiAvailable) {
-    const apiResults = await fmpProvider.fetchHistoricalPricesMultiple(tickersToFetchFromAPI);
-    
-    for (const [ticker, prices] of apiResults) {
+    try {
+      const prices = await fetchHistoricalPrices(ticker);
       if (prices && prices.length > 0) {
         results.set(ticker, prices);
-      } else if (mockProvider.hasMockData(ticker)) {
-        // Fall back to mock for this ticker
-        const mockPrices = await mockProvider.fetchHistoricalPricesMock(ticker);
-        results.set(ticker, mockPrices);
       }
+    } catch (error) {
+      console.warn(`No data for ${ticker}:`, error.message);
     }
   }
-  
+
   return results;
 }
 
+// ─── Current Prices / Quotes ───────────────────────────────────────────────
+
 /**
- * Get returns directly (uses mock if available, faster)
- * 
- * @param {string} ticker - Ticker symbol
- * @returns {{returns: number[], dates: string[]} | null}
+ * Fetch real-time quote for a ticker
+ */
+export async function fetchQuote(ticker) {
+  if (namiAPIAvailable === null) {
+    await checkNamiAPIAvailability();
+  }
+
+  // Tier 1: Our API
+  if (namiAPIAvailable) {
+    try {
+      const quote = await namiAPI.fetchQuote(ticker);
+      if (quote) return quote;
+    } catch (error) {
+      console.warn(`Nami API quote failed for ${ticker}:`, error.message);
+    }
+  }
+
+  // Tier 2: FMP
+  if (fmpAvailable === null) {
+    await checkFMPAvailability();
+  }
+  if (fmpAvailable) {
+    try {
+      return await fmpProvider.fetchQuote(ticker);
+    } catch {
+      // Continue
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fetch current prices for multiple tickers (batch)
+ */
+export async function fetchCurrentPrices(tickers) {
+  if (namiAPIAvailable === null) {
+    await checkNamiAPIAvailability();
+  }
+
+  // Tier 1: Our API (supports batch)
+  if (namiAPIAvailable) {
+    try {
+      const prices = await namiAPI.fetchCurrentPrices(tickers);
+      if (prices && Object.keys(prices).length > 0) {
+        return prices;
+      }
+    } catch (error) {
+      console.warn('Nami API batch price fetch failed:', error.message);
+    }
+  }
+
+  // Tier 2: FMP individual fetches
+  if (fmpAvailable === null) {
+    await checkFMPAvailability();
+  }
+  if (fmpAvailable) {
+    const results = {};
+    for (const ticker of tickers) {
+      try {
+        const quote = await fmpProvider.fetchQuote(ticker);
+        if (quote) results[ticker] = quote;
+      } catch {
+        // Continue
+      }
+    }
+    if (Object.keys(results).length > 0) return results;
+  }
+
+  return {};
+}
+
+// ─── Mock Data Helpers ─────────────────────────────────────────────────────
+
+/**
+ * Get returns directly from mock data (faster, no network)
  */
 export function getMockReturnsIfAvailable(ticker) {
   return mockProvider.getMockReturns(ticker);
@@ -146,74 +231,54 @@ export function hasMockData(ticker) {
   return mockProvider.hasMockData(ticker);
 }
 
-/**
- * Fetch real-time quote
- */
-export async function fetchQuote(ticker) {
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
-  }
-  
-  if (apiAvailable) {
-    return fmpProvider.fetchQuote(ticker);
-  }
-  
-  // No mock quotes available
-  return null;
-}
-
-/**
- * Fetch quotes for multiple tickers
- */
-export async function fetchQuotesMultiple(tickers) {
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
-  }
-  
-  if (apiAvailable) {
-    return fmpProvider.fetchQuotesMultiple(tickers);
-  }
-  
-  return new Map();
-}
+// ─── Search ────────────────────────────────────────────────────────────────
 
 /**
  * Search for symbols
  */
 export async function searchSymbols(query, limit = 10) {
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
+  if (fmpAvailable === null) {
+    await checkFMPAvailability();
   }
-  
-  if (apiAvailable) {
+
+  if (fmpAvailable) {
     return fmpProvider.searchSymbols(query, limit);
   }
-  
-  // For mock mode, filter curated ETFs by query
-  // This will be implemented when we integrate with etfUniverse
+
+  // No search available in mock mode
   return [];
 }
+
+// ─── Status ────────────────────────────────────────────────────────────────
 
 /**
  * Get provider status
  */
 export async function getProviderStatus() {
-  if (apiAvailable === null) {
-    await checkAPIAvailability();
+  if (namiAPIAvailable === null) {
+    await checkNamiAPIAvailability();
   }
-  
+  if (fmpAvailable === null) {
+    await checkFMPAvailability();
+  }
+
   return {
-    usingMock: !apiAvailable,
-    apiAvailable,
+    namiAPI: namiAPIAvailable,
+    fmpAvailable: fmpAvailable,
+    usingMock: !namiAPIAvailable && !fmpAvailable,
     mockTickers: mockProvider.getMockTickers(),
   };
 }
 
 /**
- * Force re-check of API availability
+ * Force re-check of all provider availability
  */
 export async function recheckAPIAvailability() {
-  apiAvailable = null;
-  apiCheckPromise = null;
-  return checkAPIAvailability();
+  namiAPIAvailable = null;
+  fmpAvailable = null;
+  checkingNamiAPI = null;
+  checkingFMP = null;
+  await checkNamiAPIAvailability();
+  await checkFMPAvailability();
+  return getProviderStatus();
 }

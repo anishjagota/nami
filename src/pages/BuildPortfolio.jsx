@@ -7,30 +7,36 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronRight, 
-  Sparkles, 
+import {
+  ChevronRight,
+  Sparkles,
   RotateCcw,
   Palette,
   Layers,
+  Save,
 } from 'lucide-react';
 import { PageWrapper } from '../components/Layout';
 import AssetSelector from '../components/AssetSelector';
 import WeightEditor from '../components/WeightEditor';
 import LivePreview, { LivePreviewBar } from '../components/LivePreview';
+import SavePortfolioModal from '../components/SavePortfolioModal';
 import { usePortfolio, presetPortfolios } from '../context/PortfolioContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 export default function BuildPortfolio() {
   const navigate = useNavigate();
-  const { 
-    selectedAssets, 
-    isValid, 
+  const {
+    selectedAssets,
+    weights,
+    isValid,
     hasStarted,
     clearPortfolio,
     loadPreset,
     totalWeight,
   } = usePortfolio();
-  
+  const { saveNewPortfolio } = useWorkspace();
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
   const canProceed = isValid && selectedAssets.length > 0;
   
   return (
@@ -41,17 +47,29 @@ export default function BuildPortfolio() {
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div>
               <h1 className="text-lg font-bold text-nami-800">Build Portfolio</h1>
-              <p className="text-xs text-nami-500">Compose your investment mix</p>
+              <p className="text-xs text-nami-500">Build your investment mix</p>
             </div>
             {hasStarted && (
-              <button 
-                onClick={clearPortfolio}
-                className="text-xs text-nami-500 hover:text-coral-600 flex items-center gap-1
-                           px-2 py-1 rounded-lg hover:bg-coral-50 transition-colors"
-              >
-                <RotateCcw size={12} />
-                Reset
-              </button>
+              <div className="flex items-center gap-2">
+                {canProceed && (
+                  <button
+                    onClick={() => setShowSaveModal(true)}
+                    className="text-xs text-nami-500 hover:text-teal-600 flex items-center gap-1
+                               px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
+                  >
+                    <Save size={12} />
+                    Save
+                  </button>
+                )}
+                <button
+                  onClick={clearPortfolio}
+                  className="text-xs text-nami-500 hover:text-coral-600 flex items-center gap-1
+                             px-2 py-1 rounded-lg hover:bg-coral-50 transition-colors"
+                >
+                  <RotateCcw size={12} />
+                  Reset
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -207,6 +225,15 @@ export default function BuildPortfolio() {
         {/* Spacer for mobile bottom bar */}
         {hasStarted && <div className="lg:hidden h-28" />}
       </div>
+
+      {/* Save Modal */}
+      <SavePortfolioModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={(name) => {
+          saveNewPortfolio({ name, holdings: weights });
+        }}
+      />
     </PageWrapper>
   );
 }

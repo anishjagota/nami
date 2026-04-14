@@ -7,28 +7,33 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  ArrowRight, 
-  Lock, 
-  Info, 
+import {
+  ArrowLeft,
+  ArrowRight,
+  Lock,
+  Info,
   BarChart3,
   ChevronDown,
   Sparkles,
   Loader2,
   AlertCircle,
+  Save,
 } from 'lucide-react';
 import { PageWrapper, PageHeader, Section } from '../components/Layout';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 import ComparisonCard, { ComparisonRow } from '../components/ComparisonCard';
+import SavePortfolioModal from '../components/SavePortfolioModal';
 import { usePortfolioAnalysis, formatPortfolioForDisplay } from '../calc/usePortfolioAnalysis';
 import { RISK_FREE_RATE } from '../config/constants';
 
 export default function CompareOptions() {
   const navigate = useNavigate();
-  const { isValid, selectedAssets } = usePortfolio();
+  const { isValid, selectedAssets, weights } = usePortfolio();
+  const { saveNewPortfolio } = useWorkspace();
   const { analysis, isReady, isLoading, error } = usePortfolioAnalysis();
   const [showMethodology, setShowMethodology] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   
   const hasPortfolio = isValid && selectedAssets.length > 0;
   
@@ -47,7 +52,7 @@ export default function CompareOptions() {
     <PageWrapper>
       <PageHeader
         title="Compare Portfolio Options"
-        subtitle="See how your portfolio stacks up against optimized alternatives"
+        subtitle="See how your portfolio compares to other strategies"
         action={
           hasPortfolio && (
             <button
@@ -73,7 +78,7 @@ export default function CompareOptions() {
             You need to create a portfolio before comparing it to alternatives
           </p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-primary"
           >
             <ArrowLeft size={16} />
@@ -90,7 +95,7 @@ export default function CompareOptions() {
           <h3 className="font-semibold text-nami-800 mb-2">Unable to load data</h3>
           <p className="text-sm text-nami-500 mb-4">{error}</p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-secondary"
           >
             <ArrowLeft size={16} />
@@ -122,9 +127,9 @@ export default function CompareOptions() {
               <div>
                 <p className="text-sm text-nami-700">
                   <span className="font-semibold">
-                    {topSharpeKey === 'user' 
-                      ? "Your portfolio has the best risk-adjusted return!" 
-                      : `The ${analysis.descriptions[topSharpeKey].name} has the best risk-adjusted return.`
+                    {topSharpeKey === 'user'
+                      ? "Your portfolio has the best return for the level of risk!"
+                      : `The ${analysis.descriptions[topSharpeKey].name} has the best return for the level of risk.`
                     }
                   </span>
                 </p>
@@ -174,35 +179,32 @@ export default function CompareOptions() {
               <div className="mt-4 card p-5 animate-slide-up">
                 <div className="space-y-4 text-sm text-nami-600">
                   <div>
-                    <h4 className="font-semibold text-nami-800 mb-1">Expected Returns</h4>
+                    <h4 className="font-semibold text-nami-800 mb-1">Expected Return</h4>
                     <p>
-                      Calculated as the geometric mean of monthly returns from January 2007 to December 2024, 
-                      then annualized. This reflects the compound growth rate over the historical period.
+                      The average annual growth rate of the portfolio over the historical period, accounting for compounding.
                     </p>
                   </div>
-                  
+
                   <div>
-                    <h4 className="font-semibold text-nami-800 mb-1">Volatility</h4>
+                    <h4 className="font-semibold text-nami-800 mb-1">Risk</h4>
                     <p>
-                      Measured as the standard deviation of monthly returns, annualized by multiplying 
-                      by √12. This represents the typical variation in returns you might expect.
+                      How much the portfolio's returns tend to swing up and down. Higher means less predictable.
                     </p>
                   </div>
-                  
+
                   <div>
-                    <h4 className="font-semibold text-nami-800 mb-1">Sharpe Ratio</h4>
+                    <h4 className="font-semibold text-nami-800 mb-1">Return / Risk</h4>
                     <p>
-                      The ratio of excess return (return above the {(RISK_FREE_RATE * 100).toFixed(0)}% risk-free rate) 
-                      to volatility. Higher is better — it measures return per unit of risk.
+                      How much return you get for each unit of risk taken. Higher means more efficient.
                     </p>
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold text-nami-800 mb-1">Optimization Methods</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li><span className="font-medium">Minimum Variance:</span> Minimizes portfolio volatility using the covariance matrix</li>
-                      <li><span className="font-medium">Risk Parity:</span> Allocates so each asset contributes equal risk</li>
-                      <li><span className="font-medium">Maximum Sharpe:</span> Maximizes the Sharpe ratio using expected returns and covariance</li>
+                      <li><span className="font-medium">Minimum Risk:</span> Finds the mix with the least ups and downs</li>
+                      <li><span className="font-medium">Risk Parity:</span> Spreads risk evenly across all assets</li>
+                      <li><span className="font-medium">Max Efficiency:</span> Finds the mix with the best return per unit of risk</li>
                     </ul>
                   </div>
                   
@@ -220,11 +222,18 @@ export default function CompareOptions() {
           {/* Navigation */}
           <div className="flex gap-3">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/build')}
               className="btn-secondary flex-1"
             >
               <ArrowLeft size={16} />
               Edit Portfolio
+            </button>
+            <button
+              onClick={() => setShowSaveModal(true)}
+              className="btn-ghost flex-1"
+            >
+              <Save size={16} />
+              Save Portfolio
             </button>
             <button
               onClick={() => navigate('/history')}
@@ -234,6 +243,20 @@ export default function CompareOptions() {
               <ArrowRight size={16} />
             </button>
           </div>
+
+          {/* Save Modal */}
+          <SavePortfolioModal
+            isOpen={showSaveModal}
+            onClose={() => setShowSaveModal(false)}
+            onSave={(name) => {
+              const metrics = isReady ? {
+                annualReturn: analysis.metrics.user.annualReturn,
+                annualRisk: analysis.metrics.user.annualVolatility,
+                sharpe: analysis.metrics.user.sharpeRatio,
+              } : null;
+              saveNewPortfolio({ name, holdings: weights, metrics });
+            }}
+          />
         </div>
       )}
     </PageWrapper>

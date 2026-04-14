@@ -1,18 +1,24 @@
 /**
  * API Configuration
- * 
- * Financial Modeling Prep (FMP) API settings.
- * 
- * For development: Uses demo key with limited requests
- * For production: Set FMP_API_KEY environment variable
+ *
+ * Stage 2 Architecture:
+ *   Primary: Our own API (/api/*) → Upstash Redis → EODHD
+ *   Fallback: FMP direct (legacy, if VITE_FMP_API_KEY is set)
+ *   Offline: Static embedded data for 7 core ETFs
+ *
+ * EODHD and Upstash credentials are SERVER-SIDE only (no VITE_ prefix).
+ * The browser only talks to our /api/* endpoints.
  */
 
-// API key - in production, this should come from environment variables
-// For development, FMP provides a demo key
+// ─── FMP (Legacy Fallback) ─────────────────────────────────────────────────
 export const FMP_API_KEY = import.meta.env.VITE_FMP_API_KEY || 'demo';
-
-// Base URLs
 export const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
+
+// ─── Our API (Primary) ────────────────────────────────────────────────────
+export const NAMI_API = {
+  basePath: '/api',
+  timeout: 15000, // 15 seconds (serverless cold starts can be slow)
+};
 
 // Rate limiting settings
 export const API_CONFIG = {

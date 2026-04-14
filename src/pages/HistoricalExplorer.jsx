@@ -69,7 +69,7 @@ export default function HistoricalExplorer() {
     <PageWrapper>
       <PageHeader
         title="Historical Performance"
-        subtitle="Explore how portfolios would have behaved in the past"
+        subtitle="See how your portfolio would have performed historically"
         action={
           hasPortfolio && isReady && (
             <button
@@ -95,7 +95,7 @@ export default function HistoricalExplorer() {
             Create a portfolio to see how it would have performed historically
           </p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-primary"
           >
             <ArrowLeft size={16} />
@@ -112,7 +112,7 @@ export default function HistoricalExplorer() {
           <h3 className="font-semibold text-nami-800 mb-2">Unable to load data</h3>
           <p className="text-sm text-nami-500 mb-4">{error}</p>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/build')}
             className="btn-secondary"
           >
             <ArrowLeft size={16} />
@@ -283,13 +283,13 @@ export default function HistoricalExplorer() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-nami-400">Vol</div>
+                        <div className="text-nami-400">Risk</div>
                         <div className="font-semibold text-nami-700">
                           {formatPercent(portfolio.volatility, 1, false)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-nami-400">Max DD</div>
+                        <div className="text-nami-400">Max Drop</div>
                         <div className="font-semibold text-coral-600">
                           -{formatPercent(portfolio.maxDrawdown, 1, false)}
                         </div>
@@ -313,7 +313,7 @@ export default function HistoricalExplorer() {
                 <div>
                   <h3 className="font-medium text-nami-800">Drawdown Analysis</h3>
                   <p className="text-xs text-nami-500">
-                    See how far portfolios fell from their peaks
+                    The largest decline from a high point to a low point
                   </p>
                 </div>
               </div>

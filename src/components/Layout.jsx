@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import Navigation from './Navigation';
 import PrototypeBanner from './PrototypeBanner';
 
@@ -20,11 +20,11 @@ export default function Layout() {
         <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-nami-700 to-coral-500 
+            <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-nami-700 to-coral-500
                               flex items-center justify-center shadow-soft">
-                <svg 
-                  viewBox="0 0 24 24" 
+                <svg
+                  viewBox="0 0 24 24"
                   className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -40,7 +40,7 @@ export default function Layout() {
                 <h1 className="text-lg font-bold text-nami-800 tracking-tight">Nami</h1>
                 <p className="text-xs text-nami-500 -mt-0.5 hidden sm:block">Portfolio Lab</p>
               </div>
-            </div>
+            </Link>
             
             {/* Desktop Navigation */}
             <div className="hidden md:block">
