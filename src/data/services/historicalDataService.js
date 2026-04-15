@@ -389,6 +389,21 @@ export async function getDataSummary(tickers) {
 }
 
 /**
+ * Seed the session cache with pre-generated static data.
+ * Called at app initialization so all 45 curated ETFs are available
+ * instantly — zero network calls needed for the curated universe.
+ *
+ * @param {Object} staticData - { ticker: { returns: number[], dates: string[] } }
+ */
+export function seedSessionCacheFromStatic(staticData) {
+  for (const [ticker, data] of Object.entries(staticData)) {
+    if (data?.returns?.length > 0 && !sessionCache.has(ticker)) {
+      sessionCache.set(ticker, { returns: data.returns, dates: data.dates });
+    }
+  }
+}
+
+/**
  * Clear all caches (for debugging/testing)
  */
 export function clearSessionCache() {

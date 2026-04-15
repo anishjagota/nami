@@ -1,18 +1,32 @@
 /**
  * Nami Historical Returns Data
- * 
+ *
  * Provides historical monthly returns data for the portfolio engine.
- * 
- * This module supports two modes:
- * 1. Static fallback data (for offline/development)
- * 2. Dynamic data from the historical data service (for real API data)
- * 
- * The sync functions use static data; async functions use the data service.
+ *
+ * Three tiers of data (fastest first):
+ * 1. Generated static data — 45 curated ETFs, pre-computed, embedded in bundle (~207KB)
+ *    Loaded into the historicalDataService session cache at import time.
+ * 2. Original hardcoded data — 7 core ETFs (SPY, AGG, VEA, VWO, GLD, VNQ, DBC)
+ * 3. Dynamic data from the historical data service (network → Redis → EODHD)
+ *
+ * The sync functions use static data; async functions prefer static then fall
+ * back to the data service only for tickers outside the curated universe.
  */
 
-import { getAlignedReturnsMatrix, getReturns } from './services/historicalDataService';
+import { getAlignedReturnsMatrix, getReturns, seedSessionCacheFromStatic } from './services/historicalDataService';
 import { hasMockData, getMockReturnsIfAvailable } from './providers';
 import { getCoreAssetIds } from './assetUniverse';
+import {
+  STATIC_RETURNS_DATA,
+  STATIC_TICKERS,
+  hasStaticReturns,
+  getStaticReturns,
+} from './generatedStaticReturns';
+import {
+  alignReturnSeries,
+  buildReturnsMatrix,
+  getDateRangeInfo,
+} from './transforms/priceToReturns';
 
 // ============================================================================
 // STATIC FALLBACK DATA
@@ -328,6 +342,14 @@ const staticReturns = {
 };
 
 // ============================================================================
+// SEED SESSION CACHE WITH GENERATED STATIC DATA
+// ============================================================================
+// Pre-populates the historicalDataService session cache with all 45 curated ETFs.
+// This means any call to getReturns() or getReturnsMultiple() for these tickers
+// hits the in-memory cache immediately — zero network calls, zero IndexedDB reads.
+seedSessionCacheFromStatic(STATIC_RETURNS_DATA);
+
+// ============================================================================
 // SYNC FUNCTIONS (use static data)
 // ============================================================================
 // These functions use the static fallback data for backward compatibility.
@@ -335,8 +357,14 @@ const staticReturns = {
 
 /**
  * Get returns for a specific asset (sync, static data only)
+ * Checks generated static data (45 ETFs) then falls back to original 7.
  */
 export function getAssetReturns(assetId) {
+  // Check generated static data first (45 ETFs)
+  const generated = getStaticReturns(assetId);
+  if (generated) return generated.returns;
+
+  // Fallback to original hardcoded data
   return staticReturns.returns[assetId] || [];
 }
 
@@ -406,37 +434,42 @@ export function getReturnsInRange(assetIds, startDate, endDate) {
  * @returns {Promise<{returns: number[], dates: string[]}>}
  */
 export async function getAssetReturnsAsync(assetId) {
-  // Try mock data first (faster)
+  // Try mock data first (fastest)
   const mockData = getMockReturnsIfAvailable(assetId);
   if (mockData) {
     return mockData;
   }
-  
-  // Fall back to static data if available
+
+  // Try generated static data (45 curated ETFs — no network needed)
+  const generated = getStaticReturns(assetId);
+  if (generated) {
+    return generated;
+  }
+
+  // Fall back to original hardcoded static data
   if (staticReturns.returns[assetId]) {
     return {
       returns: staticReturns.returns[assetId],
       dates: staticReturns.dates,
     };
   }
-  
-  // Fetch from data service
+
+  // Fetch from data service (network)
   return getReturns(assetId);
 }
 
 /**
  * Get returns matrix for multiple assets (async, real data)
  * Returns: { dates: string[], returns: number[][], tickers: string[], excluded: string[] }
- * 
+ *
  * @param {string[]} assetIds - Array of asset tickers
  * @returns {Promise<Object>}
  */
 export async function getReturnsMatrixAsync(assetIds) {
-  // Check if all assets are in static data
-  const allStatic = assetIds.every(id => staticReturns.returns[id]);
-  
-  if (allStatic) {
-    // Use sync function for static data
+  // Fast path 1: all assets in original hardcoded data (shared date index)
+  const allOriginalStatic = assetIds.every(id => staticReturns.returns[id]);
+
+  if (allOriginalStatic) {
     const { dates, returns } = getReturnsMatrix(assetIds);
     return {
       dates,
@@ -450,10 +483,35 @@ export async function getReturnsMatrixAsync(assetIds) {
       },
     };
   }
-  
-  // Use data service for mixed or non-static assets
+
+  // Fast path 2: all assets in generated static data (45 curated ETFs)
+  // Align in memory — no network calls at all
+  const allGenerated = assetIds.every(id => hasStaticReturns(id));
+
+  if (allGenerated) {
+    const returnsMap = new Map();
+    for (const id of assetIds) {
+      returnsMap.set(id, getStaticReturns(id));
+    }
+
+    const { alignedReturns, commonDates, tickersExcluded } = alignReturnSeries(returnsMap);
+    const includedTickers = assetIds.filter(t => alignedReturns.has(t));
+    const excludedTickers = [...tickersExcluded, ...assetIds.filter(t => !alignedReturns.has(t))];
+    const matrix = buildReturnsMatrix(alignedReturns, includedTickers);
+    const dateRange = getDateRangeInfo(commonDates);
+
+    return {
+      dates: commonDates,
+      returns: matrix,
+      tickers: includedTickers,
+      excluded: excludedTickers,
+      dateRange,
+    };
+  }
+
+  // Slow path: mixed or non-static assets — fetch via data service (network)
   const result = await getAlignedReturnsMatrix(assetIds);
-  
+
   return {
     dates: result.dates,
     returns: result.matrix,
@@ -465,16 +523,18 @@ export async function getReturnsMatrixAsync(assetIds) {
 
 /**
  * Check if an asset has static (offline) data available
+ * Checks both the expanded generated data (45 ETFs) and the original 7.
  */
 export function hasStaticData(assetId) {
-  return assetId in staticReturns.returns;
+  return hasStaticReturns(assetId) || assetId in staticReturns.returns;
 }
 
 /**
  * Get list of assets with static data
+ * Returns all 45 curated ETFs plus any originals not in the generated set.
  */
 export function getStaticAssetIds() {
-  return STATIC_ASSET_IDS;
+  return [...new Set([...STATIC_TICKERS, ...STATIC_ASSET_IDS])];
 }
 
 // Alias for backward compatibility

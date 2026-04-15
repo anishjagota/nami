@@ -1,13 +1,13 @@
 /**
  * Nami Dashboard Page
  *
- * Home / workspace view showing saved portfolios.
- * Entry point for returning users.
+ * Portfolio monitoring hub — the first thing returning users see.
+ * Shows saved portfolios with current value, daily P&L, and quick actions.
  */
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Briefcase, ArrowRight } from 'lucide-react';
+import { Plus, Briefcase, ArrowRight, RefreshCw } from 'lucide-react';
 import { PageWrapper, PageHeader } from '../components/Layout';
 import { useWorkspace } from '../context/WorkspaceContext';
 import PortfolioCard from '../components/PortfolioCard';
@@ -18,23 +18,53 @@ export default function Dashboard() {
     portfolios,
     removePortfolio,
     renamePortfolio,
+    duplicatePortfolio,
+    setEditingPortfolioId,
+    isRefreshingPrices,
+    refreshPrices,
+    latestPriceData,
   } = useWorkspace();
 
   const hasPortfolios = portfolios.length > 0;
+
+  const handleEdit = (id) => {
+    setEditingPortfolioId(id);
+    navigate(`/build?edit=${id}`);
+  };
 
   return (
     <PageWrapper>
       <PageHeader
         title="Dashboard"
-        subtitle="Your saved portfolios"
+        subtitle={hasPortfolios
+          ? `${portfolios.length} saved portfolio${portfolios.length > 1 ? 's' : ''}`
+          : 'Your saved portfolios'
+        }
         action={
-          <button
-            onClick={() => navigate('/build')}
-            className="btn-coral text-sm"
-          >
-            <Plus size={16} />
-            New Portfolio
-          </button>
+          <div className="flex items-center gap-2">
+            {hasPortfolios && (
+              <button
+                onClick={refreshPrices}
+                disabled={isRefreshingPrices}
+                className={`text-sm px-3 py-2 rounded-xl border border-nami-200
+                           flex items-center gap-1.5 transition-colors
+                           ${isRefreshingPrices
+                             ? 'text-nami-400 cursor-not-allowed'
+                             : 'text-nami-600 hover:bg-nami-50'
+                           }`}
+              >
+                <RefreshCw size={14} className={isRefreshingPrices ? 'animate-spin' : ''} />
+                {isRefreshingPrices ? 'Refreshing...' : 'Refresh'}
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/build')}
+              className="btn-coral text-sm"
+            >
+              <Plus size={16} />
+              New Portfolio
+            </button>
+          </div>
         }
       />
 
@@ -46,8 +76,11 @@ export default function Dashboard() {
               <PortfolioCard
                 key={portfolio.id}
                 portfolio={portfolio}
+                priceData={latestPriceData}
                 onDelete={removePortfolio}
                 onRename={renamePortfolio}
+                onDuplicate={duplicatePortfolio}
+                onEdit={handleEdit}
               />
             ))}
           </div>

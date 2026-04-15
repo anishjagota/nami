@@ -6,7 +6,7 @@
  * IndexedDB or a backend API later without changing callers.
  */
 
-import { isValidSavedPortfolio, serializePortfolio } from '../models/Portfolio';
+import { isValidSavedPortfolio, serializePortfolio, migratePortfolio } from '../models/Portfolio';
 
 const STORAGE_KEY = 'nami-saved-portfolios';
 const MAX_PORTFOLIOS = 20;
@@ -23,9 +23,10 @@ export function getAllPortfolios() {
     const portfolios = JSON.parse(raw);
     if (!Array.isArray(portfolios)) return [];
 
-    // Filter out invalid entries and sort newest first
+    // Filter out invalid entries, migrate to latest schema, sort newest first
     return portfolios
       .filter(isValidSavedPortfolio)
+      .map(migratePortfolio)
       .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   } catch (err) {
     console.warn('Failed to read saved portfolios:', err);

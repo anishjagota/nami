@@ -7,7 +7,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Save, Check } from 'lucide-react';
 
-export default function SavePortfolioModal({ isOpen, onClose, onSave, defaultName = '' }) {
+export default function SavePortfolioModal({ isOpen, onClose, onSave, defaultName = '', saveLabel = 'Save Portfolio' }) {
   const [name, setName] = useState(defaultName);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -109,7 +109,7 @@ export default function SavePortfolioModal({ isOpen, onClose, onSave, defaultNam
             ) : (
               <>
                 <Save size={16} />
-                {isSaving ? 'Saving...' : 'Save Portfolio'}
+                {isSaving ? 'Saving...' : saveLabel}
               </>
             )}
           </button>

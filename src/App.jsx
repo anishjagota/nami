@@ -12,6 +12,7 @@ import BuildPortfolio from './pages/BuildPortfolio';
 import CompareOptions from './pages/CompareOptions';
 import HistoricalExplorer from './pages/HistoricalExplorer';
 import FutureSimulation from './pages/FutureSimulation';
+import PortfolioDetail from './pages/PortfolioDetail';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="compare" element={<CompareOptions />} />
         <Route path="history" element={<HistoricalExplorer />} />
         <Route path="future" element={<FutureSimulation />} />
+        <Route path="portfolio/:id" element={<PortfolioDetail />} />
       </Route>
     </Routes>
   );
