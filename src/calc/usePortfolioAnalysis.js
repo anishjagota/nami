@@ -195,8 +195,12 @@ export function usePortfolioAnalysis() {
     
     try {
       // Get returns for needed assets only
-      const { returns: returnsMatrix, dates } = getReturnsMatrix(neededAssets);
-      return computeAnalysis(returnsMatrix, dates, neededAssets, selectedAssets, userWeightsObj);
+      const { returns: returnsMatrix, dates, tickers } = getReturnsMatrix(neededAssets);
+      // Use tickers (actual columns in the matrix) as the asset ID list
+      const actualAssets = tickers || neededAssets;
+      const validSelected = selectedAssets.filter(id => actualAssets.includes(id));
+      if (validSelected.length === 0) return null;
+      return computeAnalysis(returnsMatrix, dates, actualAssets, validSelected, userWeightsObj);
     } catch (err) {
       console.error('Sync analysis failed:', err);
       return null;

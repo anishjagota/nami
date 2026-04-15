@@ -379,23 +379,49 @@ export function getDates() {
  * Get returns matrix for multiple assets (sync, static data only)
  * Returns: { dates: string[], returns: number[][] }
  * where returns[i][j] is return of asset j in period i
- * 
- * Note: Only works for assets in the static data set (SPY, AGG, VEA, VWO, GLD, VNQ, DBC)
+ *
+ * Supports all 45 curated ETFs via generated static data, plus the original 7.
  */
 export function getReturnsMatrix(assetIds) {
-  const dates = staticReturns.dates;
-  const n = dates.length;
-  const returns = [];
-  
-  // Filter to only assets we have data for
-  const validAssetIds = assetIds.filter(id => staticReturns.returns[id]);
-  
-  for (let i = 0; i < n; i++) {
-    const row = validAssetIds.map(id => staticReturns.returns[id][i]);
-    returns.push(row);
+  // Fast path: all assets are in the original 7 hardcoded set (shared date index)
+  const allOriginal = assetIds.every(id => staticReturns.returns[id]);
+
+  if (allOriginal) {
+    const dates = staticReturns.dates;
+    const n = dates.length;
+    const returns = [];
+    for (let i = 0; i < n; i++) {
+      returns.push(assetIds.map(id => staticReturns.returns[id][i]));
+    }
+    return { dates, returns, tickers: assetIds };
   }
-  
-  return { dates, returns };
+
+  // General path: use generated static data with date alignment
+  // Collect returns for each asset from whichever source has it
+  const returnsMap = new Map();
+  for (const id of assetIds) {
+    const generated = getStaticReturns(id);
+    if (generated) {
+      returnsMap.set(id, generated);
+    } else if (staticReturns.returns[id]) {
+      returnsMap.set(id, {
+        returns: staticReturns.returns[id],
+        dates: staticReturns.dates,
+      });
+    }
+    // Skip assets with no data — they'll be excluded
+  }
+
+  if (returnsMap.size === 0) {
+    return { dates: [], returns: [], tickers: [] };
+  }
+
+  // Align all series to common dates
+  const { alignedReturns, commonDates } = alignReturnSeries(returnsMap);
+  const validAssetIds = assetIds.filter(id => alignedReturns.has(id));
+  const matrix = buildReturnsMatrix(alignedReturns, validAssetIds);
+
+  return { dates: commonDates, returns: matrix, tickers: validAssetIds };
 }
 
 /**
